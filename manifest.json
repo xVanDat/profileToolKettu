@@ -1,0 +1,14 @@
+{
+  "name": "ProfileTools",
+  "description": "Customize local Discord profiles by user ID and display global badges on Kettu.",
+  "authors": [
+    {
+      "name": "xVanDat"
+    }
+  ],
+  "main": "index.js",
+  "hash": "1.0.0",
+  "vendetta": {
+    "icon": "WrenchIcon"
+  }
+}
