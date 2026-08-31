@@ -335,11 +335,12 @@
 
     return {
         onLoad() {
-            unpatches = [];
-            patchAfter(UserStore, "getUser", (_args, user) => applyUser(user));
-            patchAfter(UserStore, "getCurrentUser", (_args, user) => applyUser(user));
-            patchAfter(UserProfileStore, "getUserProfile", ([userId], profile) => applyProfile(profile, userId));
-            patchAfter(useBadgesModule, "default", ([user], result) => {
+            try {
+                unpatches = [];
+                patchAfter(UserStore, "getUser", (_args, user) => applyUser(user));
+                patchAfter(UserStore, "getCurrentUser", (_args, user) => applyUser(user));
+                patchAfter(UserProfileStore, "getUserProfile", ([userId], profile) => applyProfile(profile, userId));
+                patchAfter(useBadgesModule, "default", ([user], result) => {
                     const userId = user?.userId || user?.id;
                     if (!userId || !Array.isArray(result)) return;
                     visibleUsers.add(userId);
@@ -350,12 +351,16 @@
                         }
                     }
                 });
-            patchAfter(jsxRuntime, "jsx", ([Component], element) => patchBadgeElement(Component, element));
-            patchAfter(jsxRuntime, "jsxs", ([Component], element) => patchBadgeElement(Component, element));
-            if (storage.globalBadges) void refreshGlobalBadges().catch(error => vendetta.logger.error(error));
-            badgeTimer = setInterval(() => {
+                patchAfter(jsxRuntime, "jsx", ([Component], element) => patchBadgeElement(Component, element));
+                patchAfter(jsxRuntime, "jsxs", ([Component], element) => patchBadgeElement(Component, element));
                 if (storage.globalBadges) void refreshGlobalBadges().catch(error => vendetta.logger.error(error));
-            }, 30 * 60 * 1000);
+                badgeTimer = setInterval(() => {
+                    if (storage.globalBadges) void refreshGlobalBadges().catch(error => vendetta.logger.error(error));
+                }, 30 * 60 * 1000);
+            } catch (error) {
+                vendetta.logger.error("ProfileTools: startup failed", error);
+                try { showToast(`ProfileTools startup warning: ${String(error)}`); } catch { }
+            }
         },
         onUnload() {
             unpatches.forEach(unpatch => unpatch?.());
