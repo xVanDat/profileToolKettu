@@ -8,6 +8,7 @@ if (digest !== manifest.hash) throw new Error(`Hash mismatch: ${digest} != ${man
 if (!source.startsWith("(")) throw new Error("Bundle must start with an opening parenthesis");
 
 const noop = () => { };
+const installedPatches = [];
 const React = { createElement: noop, useState: value => [value, noop] };
 const ReactNative = {
     ScrollView: noop,
@@ -21,11 +22,18 @@ const ReactNative = {
 const api = {
     metro: {
         common: { React, ReactNative, FluxDispatcher: { dispatch: noop } },
-        findByStoreName: () => ({}),
-        findByProps: () => ({}),
-        findByName: () => ({}),
+        findByStoreName: name => name === "UserStore"
+            ? { getUser: noop, getCurrentUser: noop }
+            : { getUserProfile: noop, getGuildMemberProfile: noop },
+        findByProps: (...props) => props.includes("getAvatarDecorationURL")
+            ? { getAvatarDecorationURL: noop }
+            : props.includes("jsx") ? { jsx: noop, jsxs: noop } : {},
+        findByName: () => ({ default: noop }),
     },
-    patcher: { after: () => noop },
+    patcher: { after: (method, parent, callback) => {
+        installedPatches.push({ method, parent, callback });
+        return noop;
+    } },
     plugin: { storage: {} },
     storage: { useProxy: noop },
     ui: { toasts: { showToast: noop } },
@@ -41,13 +49,30 @@ function load(vendetta) {
     return typeof raw === "function" ? raw() : raw;
 }
 
-for (const vendetta of [api, { ...api, metro: { ...api.metro, common: {} } }]) {
-    const plugin = load(vendetta);
-    if (typeof plugin?.onLoad !== "function" || typeof plugin?.onUnload !== "function" || typeof plugin?.settings !== "function") {
+const plugin = load(api);
+api.plugin.storage.profiles = {
+    "123456789012345678": {
+        badgeFlags: 4194304,
+        decorationAsset: "1144307957425778779",
+        profileEffectId: "1139323092645183591",
+        connections: [{ platform: "github", name: "xVanDat", url: "https://github.com/xVanDat" }],
+    },
+};
+plugin.onLoad();
+const profilePatch = installedPatches.find(patch => patch.method === "getUserProfile");
+const profile = profilePatch.callback(["123456789012345678"], { userId: "123456789012345678" });
+if (profile.profileEffectId !== "1139323092645183591" || profile.avatarDecorationData?.asset !== "1144307957425778779" || profile.connectedAccounts?.length !== 1) {
+    throw new Error("Profile cosmetics/connections patch failed");
+}
+plugin.onUnload();
+
+for (const vendetta of [{ ...api, metro: { ...api.metro, common: {} } }]) {
+    const fallbackPlugin = load(vendetta);
+    if (typeof fallbackPlugin?.onLoad !== "function" || typeof fallbackPlugin?.onUnload !== "function" || typeof fallbackPlugin?.settings !== "function") {
         throw new Error("Invalid plugin exports");
     }
-    plugin.onLoad();
-    plugin.onUnload();
+    fallbackPlugin.onLoad();
+    fallbackPlugin.onUnload();
 }
 
 console.log(`Kettu bundle test passed: ${digest}`);

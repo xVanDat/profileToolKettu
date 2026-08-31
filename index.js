@@ -37,6 +37,7 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
         var profileActions = vendetta.metro.findByProps("getUser", "fetchProfile");
         var useBadgesModule = vendetta.metro.findByName("useBadges", false);
         var jsxRuntime = vendetta.metro.findByProps("jsx", "jsxs");
+        var decorationModule = vendetta.metro.findByProps("getAvatarDecorationURL");
         var storage = vendetta.plugin.storage;
         var useProxy = vendetta.storage.useProxy;
         var showToast = vendetta.ui.toasts.showToast;
@@ -143,6 +144,110 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             revenge: "Revenge",
             record: "ReCord"
         };
+        var badgeDefinitions = [
+            [
+                1,
+                "Discord Staff",
+                "5e74e9b61934fc1f67c65515d1f7e60d"
+            ],
+            [
+                2,
+                "Partnered Server Owner",
+                "3f9748e53446a137a052f3454e2de41e"
+            ],
+            [
+                4,
+                "HypeSquad Events",
+                "bf01d1073931f921909045f3a39fd264"
+            ],
+            [
+                8,
+                "Bug Hunter Level 1",
+                "2717692c7dca7289b35297368a940dd0"
+            ],
+            [
+                64,
+                "HypeSquad Bravery",
+                "8a88d63823d8a71cd5e390baa45efa02"
+            ],
+            [
+                128,
+                "HypeSquad Brilliance",
+                "011940fd013da3f7fb926e4a1cd2e618"
+            ],
+            [
+                256,
+                "HypeSquad Balance",
+                "3aa41de486fa12454c3761e8e223442e"
+            ],
+            [
+                512,
+                "Early Supporter",
+                "7060786766c9c840eb3019e725d2b358"
+            ],
+            [
+                16384,
+                "Bug Hunter Level 2",
+                "848f79194d4be5ff5f81505cbd0ce1e6"
+            ],
+            [
+                131072,
+                "Early Verified Bot Developer",
+                "6df5892e0f35b051f8b61eace34f4967"
+            ],
+            [
+                262144,
+                "Former Discord Moderator",
+                "fee1624003e2fee35cb398e125dc479b"
+            ],
+            [
+                4194304,
+                "Active Developer",
+                "6bdc42827a38498929a4920da12695d9"
+            ]
+        ];
+        var specialBadgeDefinitions = {
+            quest: [
+                "Completed a Quest",
+                "7d9ae358c8c5e118768335dbe68b4fb8"
+            ],
+            orbs: [
+                "Orbs — Apprentice",
+                "83d8a1eb09a8d64e59233eec5d4d5c2d"
+            ],
+            oldname: [
+                "Originally Known As",
+                "6de6d34650760ba5551a79732e98ed60"
+            ],
+            gifting_icon: [
+                "Gifting Icon",
+                "64f2413c9b9803661322aaad25826b62"
+            ],
+            gifting_patron: [
+                "Gifting Patron",
+                "ac305d1b9481f312ce4419e7f8296558"
+            ],
+            gifting_champion: [
+                "Gifting Champion",
+                "8b7792c4f65953d3ff564f23429cb79e"
+            ],
+            gifting_luminary: [
+                "Gifting Luminary",
+                "3119f5504b2cd09576a323908c7c3517"
+            ],
+            gifting_hero: [
+                "Gifting Hero",
+                "77d65b1f210014a11eb1582ee06ab684"
+            ],
+            gifting_legend: [
+                "Gifting Legend",
+                "7fe346cfc5da1340087d8759a9e7a395"
+            ],
+            gifting_level: [
+                "Level Reached",
+                "ca105ad9cfc8580c765101d17bbb2323"
+            ]
+        };
         var userOriginals = new Map();
         var profileOriginals = new Map();
         var badgeProps = new Map();
@@ -156,7 +261,12 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             "pronouns",
             "accentColor",
             "publicFlags",
-            "premiumType"
+            "flags",
+            "premiumType",
+            "avatarDecoration",
+            "avatarDecorationData",
+            "profileEffectId",
+            "profileEffect"
         ];
         var assignableKeys = [
             ...visualKeys,
@@ -194,6 +304,24 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             var values = {
                 ...custom
             };
+            if (custom.badgeFlags !== undefined) {
+                values.publicFlags = Number(custom.badgeFlags) || 0;
+                values.flags = Number(custom.badgeFlags) || 0;
+            }
+            if (custom.decorationAsset) {
+                values.avatarDecoration = null;
+                values.avatarDecorationData = {
+                    asset: custom.decorationAsset,
+                    skuId: custom.decorationAsset
+                };
+            }
+            if (custom.profileEffectId) {
+                values.profileEffectId = custom.profileEffectId;
+                values.profileEffect = {
+                    expireAt: null,
+                    skuId: custom.profileEffectId
+                };
+            }
             if (custom.avatar?.startsWith("http")) values.getAvatarURL = function() {
                 return custom.avatar;
             };
@@ -208,7 +336,48 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
         }
         function applyProfile(profile, userId) {
             var values = customValues(userId);
-            return profile && values ? rememberAndAssign(profile, values, profileOriginals) : profile;
+            if (!profile || !values) return profile;
+            var custom = storage.profiles[userId] || {};
+            var merged = {
+                ...profile
+            };
+            for (var key of visualKeys){
+                if (values[key] !== undefined) merged[key] = values[key];
+            }
+            if (Array.isArray(custom.connections) && custom.connections.length) {
+                var existing = (profile.connectedAccounts || profile.connected_accounts || []).filter(function(item) {
+                    return !item?._profileTools;
+                });
+                var connections = custom.connections.map(function(item, index) {
+                    return {
+                        type: item.platform || "domain",
+                        id: item.name || `profiletools-${index}`,
+                        name: item.name || item.url || "ProfileTools",
+                        verified: true,
+                        visibility: 1,
+                        showActivity: false,
+                        show_activity: false,
+                        friendSync: false,
+                        friend_sync: false,
+                        metadataVisibility: 0,
+                        metadata_visibility: 0,
+                        twoWayLink: false,
+                        two_way_link: false,
+                        metadata: {},
+                        url: item.url || undefined,
+                        _profileTools: true
+                    };
+                });
+                merged.connectedAccounts = [
+                    ...existing,
+                    ...connections
+                ];
+                merged.connected_accounts = [
+                    ...existing,
+                    ...connections
+                ];
+            }
+            return merged;
         }
         function restoreMap(originals) {
             for (var [target, values] of originals){
@@ -286,8 +455,29 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             })();
         }
         function profileBadges(userId) {
-            var custom = storage.profiles[userId]?.badges || [];
+            var profile = storage.profiles[userId] || {};
+            var custom = profile.badges || [];
             var global = storage.globalBadges ? badgeUsers[userId] || [] : [];
+            var flags = Number(profile.badgeFlags) || 0;
+            var flagBadges = badgeDefinitions.filter(function([flag]) {
+                return flags & flag;
+            }).map(function([flag, label, hash]) {
+                return {
+                    id: `profiletools-flag-${userId}-${flag}`,
+                    label,
+                    url: `https://cdn.discordapp.com/badge-icons/${hash}.png`
+                };
+            });
+            var specialBadges = (profile.specialBadgeIds || []).map(function(id) {
+                var definition = specialBadgeDefinitions[id];
+                if (!definition) return null;
+                var label = id === "oldname" && profile.oldName ? `Originally known as ${profile.oldName}` : id === "gifting_level" && profile.levelReached ? `Level ${profile.levelReached} Reached` : definition[0];
+                return {
+                    id: `profiletools-special-${userId}-${id}`,
+                    label,
+                    url: `https://cdn.discordapp.com/badge-icons/${definition[1]}.png`
+                };
+            }).filter(Boolean);
             return [
                 ...custom.map(function(badge, index) {
                     return {
@@ -302,16 +492,15 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                         label: labelFor(badge),
                         url: badge.badge
                     };
-                })
+                }),
+                ...flagBadges,
+                ...specialBadges
             ];
         }
-        function patchBadgeElement(Component, element) {
-            if (typeof Component !== "function" || ![
-                "ProfileBadge",
-                "RenderedBadge"
-            ].includes(Component.name)) return;
+        function patchBadgeElement(_Component, element) {
             var props = badgeProps.get(element?.props?.id);
             if (props) Object.assign(element.props, props);
+            return element;
         }
         function invalidateBadges(userId) {
             if (userId) FluxDispatcher.dispatch({
@@ -320,6 +509,18 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     id: userId
                 }
             });
+        }
+        function customDecorationUrl(options, original) {
+            var data = options?.avatarDecorationData || options?.avatarDecoration || options;
+            var userId = options?.userId;
+            var matching = userId && storage.profiles[userId]?.decorationAsset ? storage.profiles[userId].decorationAsset : Object.values(storage.profiles).map(function(profile) {
+                return profile?.decorationAsset;
+            }).find(function(asset) {
+                return asset && (asset === data?.asset || asset === data?.skuId);
+            });
+            if (!matching) return original;
+            var animated = options?.canAnimate ?? options?.animated ?? true;
+            return `https://cdn.discordapp.com/media/v1/collectibles-shop/${matching}/${animated ? "animated" : "static"}`;
         }
         function parseColor(value) {
             var normalized = value.trim().replace(/^#/, "");
@@ -341,6 +542,23 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     url: line.slice(separator + 1).trim()
                 };
                 return badge.label && badge.url ? badge : null;
+            }).filter(Boolean);
+        }
+        function connectionsToText(connections) {
+            return (connections || []).map(function(item) {
+                return `${item.platform || "domain"}|${item.name || ""}|${item.url || ""}`;
+            }).join("\n");
+        }
+        function parseConnections(value) {
+            return value.split("\n").map(function(line) {
+                var [platform, name, ...urlParts] = line.split("|");
+                var url = urlParts.join("|").trim();
+                if (!name?.trim()) return null;
+                return {
+                    platform: platform?.trim() || "domain",
+                    name: name.trim(),
+                    url: url || undefined
+                };
             }).filter(Boolean);
         }
         function Field({ label, value, onChangeText, placeholder, multiline, keyboardType }) {
@@ -397,6 +615,7 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                 ...initial
             });
             var [badgeText, setBadgeText] = React.useState(badgesToText(initial.badges));
+            var [connectionText, setConnectionText] = React.useState(connectionsToText(initial.connections));
             var normalizedUserId = userId.trim();
             var validUserId = /^\d{15,22}$/.test(normalizedUserId);
             var selected = validUserId && activeUserId === normalizedUserId;
@@ -418,6 +637,7 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                         ...saved
                     });
                     setBadgeText(badgesToText(saved.badges));
+                    setConnectionText(connectionsToText(saved.connections));
                     showToast("ProfileTools: Profile loaded");
                 })();
             };
@@ -541,19 +761,98 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                         };
                     });
                 }
+            }), h(Text, {
+                style: styles.title
+            }, "Cosmetics & Badges"), h(Field, {
+                label: "Avatar decoration Asset/SKU ID",
+                value: draft.decorationAsset || "",
+                placeholder: "1144307957425778779",
+                keyboardType: "numeric",
+                onChangeText: function onChangeText(value) {
+                    return update("decorationAsset", value.trim());
+                }
             }), h(Field, {
+                label: "Profile effect SKU ID",
+                value: draft.profileEffectId || "",
+                placeholder: "1139323092645183591",
+                keyboardType: "numeric",
+                onChangeText: function onChangeText(value) {
+                    return update("profileEffectId", value.trim());
+                }
+            }), h(Field, {
+                label: "Discord badge flags (decimal; combine by addition)",
+                value: draft.badgeFlags === undefined ? "" : String(draft.badgeFlags),
+                placeholder: "4194304 = Active Developer",
+                keyboardType: "numeric",
+                onChangeText: function onChangeText(value) {
+                    return setDraft(function(previous) {
+                        return {
+                            ...previous,
+                            badgeFlags: value.trim() ? Number.parseInt(value, 10) || 0 : undefined
+                        };
+                    });
+                }
+            }), h(Text, {
+                style: styles.hint
+            }, "Flags: Staff 1, Partner 2, HypeSquad 4, Bug Hunter 8/16384, Bravery 64, Brilliance 128, Balance 256, Early Supporter 512, Verified Developer 131072, Former Moderator 262144, Active Developer 4194304."), h(Field, {
+                label: "Special badge IDs (comma-separated)",
+                value: (draft.specialBadgeIds || []).join(", "),
+                placeholder: "quest, orbs, oldname, gifting_icon, gifting_level",
+                onChangeText: function onChangeText(value) {
+                    return setDraft(function(previous) {
+                        return {
+                            ...previous,
+                            specialBadgeIds: value.split(",").map(function(item) {
+                                return item.trim();
+                            }).filter(function(item) {
+                                return specialBadgeDefinitions[item];
+                            })
+                        };
+                    });
+                }
+            }), (draft.specialBadgeIds || []).includes("oldname") ? h(Field, {
+                label: "Old username badge text",
+                value: draft.oldName || "",
+                placeholder: "OldUser#0000",
+                onChangeText: function onChangeText(value) {
+                    return update("oldName", value);
+                }
+            }) : null, (draft.specialBadgeIds || []).includes("gifting_level") ? h(Field, {
+                label: "Level reached",
+                value: String(draft.levelReached || 1),
+                keyboardType: "numeric",
+                onChangeText: function onChangeText(value) {
+                    return setDraft(function(previous) {
+                        return {
+                            ...previous,
+                            levelReached: Number.parseInt(value, 10) || 1
+                        };
+                    });
+                }
+            }) : null, h(Field, {
                 label: "Custom badges (one Name|URL per line)",
                 value: badgeText,
                 multiline: true,
                 placeholder: "My Badge|https://example.com/badge.png",
                 onChangeText: setBadgeText
+            }), h(Text, {
+                style: styles.title
+            }, "Custom Connections"), h(Text, {
+                style: styles.hint
+            }, "One connection per line: platform|display name|URL. Examples: github|xVanDat|https://github.com/xVanDat or domain|My Site|https://example.com"), h(Field, {
+                label: "Connections",
+                value: connectionText,
+                multiline: true,
+                placeholder: "github|xVanDat|https://github.com/xVanDat",
+                onChangeText: setConnectionText
             }), h(ActionButton, {
                 text: "Save and apply",
                 disabled: !selected,
                 onPress: function onPress() {
                     storage.profiles[normalizedUserId] = {
                         ...draft,
-                        badges: parseBadges(badgeText)
+                        badges: parseBadges(badgeText),
+                        connections: parseConnections(connectionText)
                     };
                     refreshProfiles(normalizedUserId);
                     invalidateBadges(normalizedUserId);
@@ -567,6 +866,7 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     delete storage.profiles[normalizedUserId];
                     setDraft({});
                     setBadgeText("");
+                    setConnectionText("");
                     refreshProfiles(normalizedUserId);
                     invalidateBadges(normalizedUserId);
                 }
@@ -584,6 +884,12 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     });
                     patchAfter(UserProfileStore, "getUserProfile", function([userId], profile) {
                         return applyProfile(profile, userId);
+                    });
+                    patchAfter(UserProfileStore, "getGuildMemberProfile", function([userId], profile) {
+                        return applyProfile(profile, userId);
+                    });
+                    patchAfter(decorationModule, "getAvatarDecorationURL", function([options], original) {
+                        return customDecorationUrl(options, original);
                     });
                     patchAfter(useBadgesModule, "default", function([user], result) {
                         var _loop = function(badge) {
