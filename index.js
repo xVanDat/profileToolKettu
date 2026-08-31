@@ -1,4 +1,4 @@
-vendetta => {
+() => {
     const React = vendetta.metro.common.React;
     const ReactNative = vendetta.metro.common.ReactNative;
     const { ScrollView, View, Text, TextInput, Switch, Pressable, StyleSheet } = ReactNative;
@@ -64,6 +64,16 @@ vendetta => {
     let badgeUsers = {};
     let unpatches = [];
     let badgeTimer;
+
+    function patchAfter(parent, method, callback) {
+        if (!parent || typeof parent[method] !== "function") return;
+        try {
+            const unpatch = after(method, parent, callback);
+            if (typeof unpatch === "function") unpatches.push(unpatch);
+        } catch (error) {
+            vendetta.logger.error(`ProfileTools: failed to patch ${method}`, error);
+        }
+    }
 
     function rememberAndAssign(target, values, originals) {
         if (!target || !values) return target;
@@ -325,11 +335,11 @@ vendetta => {
 
     return {
         onLoad() {
-            unpatches = [
-                after("getUser", UserStore, (_args, user) => applyUser(user)),
-                after("getCurrentUser", UserStore, (_args, user) => applyUser(user)),
-                after("getUserProfile", UserProfileStore, ([userId], profile) => applyProfile(profile, userId)),
-                after("default", useBadgesModule, ([user], result) => {
+            unpatches = [];
+            patchAfter(UserStore, "getUser", (_args, user) => applyUser(user));
+            patchAfter(UserStore, "getCurrentUser", (_args, user) => applyUser(user));
+            patchAfter(UserProfileStore, "getUserProfile", ([userId], profile) => applyProfile(profile, userId));
+            patchAfter(useBadgesModule, "default", ([user], result) => {
                     const userId = user?.userId || user?.id;
                     if (!userId || !Array.isArray(result)) return;
                     visibleUsers.add(userId);
@@ -339,10 +349,9 @@ vendetta => {
                             result.unshift({ id: badge.id, description: badge.label, icon: " _" });
                         }
                     }
-                }),
-                after("jsx", jsxRuntime, ([Component], element) => patchBadgeElement(Component, element)),
-                after("jsxs", jsxRuntime, ([Component], element) => patchBadgeElement(Component, element)),
-            ];
+                });
+            patchAfter(jsxRuntime, "jsx", ([Component], element) => patchBadgeElement(Component, element));
+            patchAfter(jsxRuntime, "jsxs", ([Component], element) => patchBadgeElement(Component, element));
             if (storage.globalBadges) void refreshGlobalBadges().catch(error => vendetta.logger.error(error));
             badgeTimer = setInterval(() => {
                 if (storage.globalBadges) void refreshGlobalBadges().catch(error => vendetta.logger.error(error));
