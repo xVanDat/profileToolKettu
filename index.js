@@ -248,6 +248,100 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                 "ca105ad9cfc8580c765101d17bbb2323"
             ]
         };
+        var nitroBadges = [
+            [
+                "Nitro",
+                "2ba85e8026a8614b640c2837bcdfe21b",
+                0
+            ],
+            [
+                "Bronze",
+                "4f33c4a9c64ce221936bd256c356f91f",
+                1
+            ],
+            [
+                "Silver",
+                "4514fab914bdbfb4ad2fa23df76121a6",
+                3
+            ],
+            [
+                "Gold",
+                "2895086c18d5531d499862e41d1155a6",
+                6
+            ],
+            [
+                "Platinum",
+                "0334688279c8359120922938dcb1d6f8",
+                12
+            ],
+            [
+                "Diamond",
+                "0d61871f72bb9a33a7ae568c1fb4f20a",
+                24
+            ],
+            [
+                "Emerald",
+                "11e2d339068b55d3a506cff34d3780f3",
+                36
+            ],
+            [
+                "Ruby",
+                "cd5e2cfd9d7f27a8cdcd3e8a8d5dc9f4",
+                60
+            ],
+            [
+                "Opal",
+                "5b154df19c53dce2af92c9b61e6be5e2",
+                72
+            ]
+        ];
+        var boostBadges = [
+            [
+                "1 Month Server Booster",
+                "51040c70d4f20a921ad6674ff86fc95c",
+                1
+            ],
+            [
+                "2 Month Server Booster",
+                "0e4080d1d333bc7ad29ef6528b6f2fb7",
+                2
+            ],
+            [
+                "3 Month Server Booster",
+                "72bed924410c304dbe3d00a6e593ff59",
+                3
+            ],
+            [
+                "6 Month Server Booster",
+                "df199d2050d3ed4ebf84d64ae83989f8",
+                6
+            ],
+            [
+                "9 Month Server Booster",
+                "996b3e870e8a22ce519b3a50e6bdd52f",
+                9
+            ],
+            [
+                "12 Month Server Booster",
+                "991c9f39ee33d7537d9f408c3e53141e",
+                12
+            ],
+            [
+                "15 Month Server Booster",
+                "cb3ae83c15e970e8f3d410bc62cb8b99",
+                15
+            ],
+            [
+                "18 Month Server Booster",
+                "7142225d31238f6387d9f09efaa02759",
+                18
+            ],
+            [
+                "24 Month Server Booster",
+                "ec92202290b48d0879b7413d2dde3bab",
+                24
+            ]
+        ];
         var userOriginals = new Map();
         var profileOriginals = new Map();
         var badgeProps = new Map();
@@ -266,7 +360,10 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             "avatarDecoration",
             "avatarDecorationData",
             "profileEffectId",
-            "profileEffect"
+            "profileEffect",
+            "premiumSince",
+            "premiumGuildSince",
+            "themeColors"
         ];
         var assignableKeys = [
             ...visualKeys,
@@ -321,6 +418,25 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     expireAt: null,
                     skuId: custom.profileEffectId
                 };
+            }
+            if (custom.nitro) {
+                var nitroLevel = Math.max(0, Math.min(nitroBadges.length - 1, Number(custom.nitroLevel) || 0));
+                var nitroDate = new Date();
+                nitroDate.setMonth(nitroDate.getMonth() - nitroBadges[nitroLevel][2]);
+                values.premiumType = 2;
+                values.premiumSince = nitroDate.toISOString();
+                if (custom.boostLevel !== undefined && Number(custom.boostLevel) >= 0) {
+                    var boostLevel = Math.max(0, Math.min(boostBadges.length - 1, Number(custom.boostLevel) || 0));
+                    var boostDate = new Date();
+                    boostDate.setMonth(boostDate.getMonth() - boostBadges[boostLevel][2]);
+                    values.premiumGuildSince = boostDate.toISOString();
+                }
+                if (custom.accentColor !== undefined) {
+                    values.themeColors = [
+                        custom.accentColor,
+                        custom.accentColor2 ?? custom.accentColor
+                    ];
+                }
             }
             if (custom.avatar?.startsWith("http")) values.getAvatarURL = function() {
                 return custom.avatar;
@@ -478,6 +594,25 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     url: `https://cdn.discordapp.com/badge-icons/${definition[1]}.png`
                 };
             }).filter(Boolean);
+            var premiumBadges = [];
+            if (profile.nitro) {
+                var nitroLevel = Math.max(0, Math.min(nitroBadges.length - 1, Number(profile.nitroLevel) || 0));
+                var nitro = nitroBadges[nitroLevel];
+                premiumBadges.push({
+                    id: `profiletools-nitro-${userId}-${nitroLevel}`,
+                    label: `${nitro[0]} (${nitro[2]} months)`,
+                    url: `https://cdn.discordapp.com/badge-icons/${nitro[1]}.png`
+                });
+                if (profile.boostLevel !== undefined && Number(profile.boostLevel) >= 0) {
+                    var boostLevel = Math.max(0, Math.min(boostBadges.length - 1, Number(profile.boostLevel) || 0));
+                    var boost = boostBadges[boostLevel];
+                    premiumBadges.push({
+                        id: `profiletools-boost-${userId}-${boostLevel}`,
+                        label: boost[0],
+                        url: `https://cdn.discordapp.com/badge-icons/${boost[1]}.png`
+                    });
+                }
+            }
             return [
                 ...custom.map(function(badge, index) {
                     return {
@@ -494,7 +629,8 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     };
                 }),
                 ...flagBadges,
-                ...specialBadges
+                ...specialBadges,
+                ...premiumBadges
             ];
         }
         function patchBadgeElement(_Component, element) {
@@ -763,7 +899,45 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                 }
             }), h(Text, {
                 style: styles.title
-            }, "Cosmetics & Badges"), h(Field, {
+            }, "Cosmetics & Badges"), h(Toggle, {
+                label: "Spoof Nitro",
+                value: Boolean(draft.nitro),
+                onValueChange: function onValueChange(value) {
+                    return setDraft(function(previous) {
+                        return {
+                            ...previous,
+                            nitro: value
+                        };
+                    });
+                }
+            }), draft.nitro ? h(Field, {
+                label: "Evolving Nitro level (0–8)",
+                value: String(draft.nitroLevel ?? 0),
+                placeholder: "0 = Nitro, 8 = Opal",
+                keyboardType: "numeric",
+                onChangeText: function onChangeText(value) {
+                    return setDraft(function(previous) {
+                        return {
+                            ...previous,
+                            nitroLevel: Math.max(0, Math.min(8, Number.parseInt(value, 10) || 0))
+                        };
+                    });
+                }
+            }) : null, draft.nitro ? h(Field, {
+                label: "Server Booster level (-1 = none, 0–8)",
+                value: String(draft.boostLevel ?? -1),
+                placeholder: "-1 = none, 0 = 1 month, 8 = 24 months",
+                onChangeText: function onChangeText(value) {
+                    return setDraft(function(previous) {
+                        return {
+                            ...previous,
+                            boostLevel: value.trim() === "-1" || !value.trim() ? -1 : Math.max(0, Math.min(8, Number.parseInt(value, 10) || 0))
+                        };
+                    });
+                }
+            }) : null, draft.nitro ? h(Text, {
+                style: styles.hint
+            }, "Nitro level: 0 Nitro, 1 Bronze, 2 Silver, 3 Gold, 4 Platinum, 5 Diamond, 6 Emerald, 7 Ruby, 8 Opal. Booster uses levels 0–8 for 1–24 months.") : null, h(Field, {
                 label: "Avatar decoration Asset/SKU ID",
                 value: draft.decorationAsset || "",
                 placeholder: "1144307957425778779",

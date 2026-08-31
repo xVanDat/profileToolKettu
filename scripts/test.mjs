@@ -53,6 +53,9 @@ const plugin = load(api);
 api.plugin.storage.profiles = {
     "123456789012345678": {
         badgeFlags: 4194304,
+        nitro: true,
+        nitroLevel: 3,
+        boostLevel: 2,
         decorationAsset: "1144307957425778779",
         profileEffectId: "1139323092645183591",
         connections: [{ platform: "github", name: "xVanDat", url: "https://github.com/xVanDat" }],
@@ -61,7 +64,7 @@ api.plugin.storage.profiles = {
 plugin.onLoad();
 const profilePatch = installedPatches.find(patch => patch.method === "getUserProfile");
 const profile = profilePatch.callback(["123456789012345678"], { userId: "123456789012345678" });
-if (profile.profileEffectId !== "1139323092645183591" || profile.avatarDecorationData?.asset !== "1144307957425778779" || profile.connectedAccounts?.length !== 1) {
+if (profile.profileEffectId !== "1139323092645183591" || profile.avatarDecorationData?.asset !== "1144307957425778779" || profile.connectedAccounts?.length !== 1 || profile.premiumType !== 2 || !profile.premiumSince || !profile.premiumGuildSince) {
     throw new Error("Profile cosmetics/connections patch failed");
 }
 plugin.onUnload();
