@@ -1,0 +1,12 @@
+{
+  "name": "profile-tools-kettu",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.13.1"
+  }
+}
