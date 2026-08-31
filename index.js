@@ -1,4 +1,5 @@
 () => {
+    try {
     const React = vendetta.metro.common.React;
     const ReactNative = vendetta.metro.common.ReactNative;
     const { ScrollView, View, Text, TextInput, Switch, Pressable, StyleSheet } = ReactNative;
@@ -374,4 +375,15 @@
         },
         settings: Settings,
     };
+    } catch (error) {
+        const message = `ProfileTools initialization failed: ${String(error)}`;
+        try { vendetta.logger.error(message, error); } catch { }
+        return {
+            onLoad() {
+                try { vendetta.ui.toasts.showToast(message); } catch { }
+            },
+            onUnload() { },
+            settings: () => null,
+        };
+    }
 };
