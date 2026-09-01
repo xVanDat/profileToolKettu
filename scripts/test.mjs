@@ -27,7 +27,7 @@ const api = {
             : { getUserProfile: noop, getGuildMemberProfile: noop },
         findByProps: (...props) => props.includes("getAvatarDecorationURL")
             ? { getAvatarDecorationURL: noop }
-            : props.includes("getUserAvatarURL") ? { getUserAvatarURL: noop }
+            : props.includes("getUserAvatarURL") ? { getUserAvatarURL: noop, getUserAvatarSource: noop }
             : props.includes("jsx") ? { jsx: noop, jsxs: noop } : {},
         findByName: () => ({ default: noop }),
     },
@@ -72,6 +72,15 @@ if (profile.profileEffectId !== "1139323092645183591" || profile.avatarDecoratio
 const avatarPatch = installedPatches.find(patch => patch.method === "getUserAvatarURL");
 if (avatarPatch.callback([{ id: "123456789012345678" }], "original") !== "https://example.com/avatar-1024.png") {
     throw new Error("Direct avatar URL patch failed");
+}
+const avatarSourcePatch = installedPatches.find(patch => patch.method === "getUserAvatarSource");
+if (avatarSourcePatch.callback([{ id: "123456789012345678" }], null)?.uri !== "https://example.com/avatar-1024.png") {
+    throw new Error("React Native avatar source patch failed");
+}
+const userPatch = installedPatches.find(patch => patch.method === "getUser");
+const proxiedUser = userPatch.callback([], { id: "123456789012345678", avatar: "real-hash" });
+if (proxiedUser.getAvatarURL() !== "https://example.com/avatar-1024.png" || proxiedUser.getAvatarSource()?.uri !== "https://example.com/avatar-1024.png") {
+    throw new Error("User avatar proxy failed");
 }
 plugin.onUnload();
 

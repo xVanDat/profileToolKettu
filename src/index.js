@@ -11,7 +11,7 @@
     const useBadgesModule = vendetta.metro.findByName("useBadges", false);
     const jsxRuntime = vendetta.metro.findByProps("jsx", "jsxs");
     const decorationModule = vendetta.metro.findByProps("getAvatarDecorationURL");
-    const avatarModule = vendetta.metro.findByProps("getUserAvatarURL");
+    const avatarModule = vendetta.metro.findByProps("getUserAvatarURL", "getUserAvatarSource");
     const storage = vendetta.plugin.storage;
     const useProxy = vendetta.storage.useProxy;
     const showToast = vendetta.ui.toasts.showToast;
@@ -105,6 +105,7 @@
     ];
 
     const userOriginals = new Map();
+    const userProxyCache = new WeakMap();
     const profileOriginals = new Map();
     const badgeProps = new Map();
     const visibleUsers = new Set();
@@ -183,7 +184,25 @@
 
     function applyUser(user) {
         const values = user?.id && customValues(user.id);
-        return values ? rememberAndAssign(user, values, userOriginals) : user;
+        if (!values) return user;
+        const applied = rememberAndAssign(user, values, userOriginals);
+        if (!storage.profiles[user.id]?.avatar?.startsWith("http")) return applied;
+        let proxy = userProxyCache.get(applied);
+        if (!proxy) {
+            proxy = new Proxy(applied, {
+                get(target, property, receiver) {
+                    const avatar = storage.profiles[target.id]?.avatar;
+                    if (avatar?.startsWith("http")) {
+                        if (property === "getAvatarURL") return () => avatar;
+                        if (property === "getAvatarSource") return () => ({ uri: avatar });
+                        if (property === "avatarURL") return avatar;
+                    }
+                    return Reflect.get(target, property, receiver);
+                },
+            });
+            userProxyCache.set(applied, proxy);
+        }
+        return proxy;
     }
 
     function applyProfile(profile, userId) {
@@ -360,6 +379,11 @@
         const userId = user?.id || user?.userId;
         const avatar = userId && storage.profiles[userId]?.avatar;
         return avatar?.startsWith("http://") || avatar?.startsWith("https://") ? avatar : original;
+    }
+
+    function customAvatarSource(user, original) {
+        const avatar = customAvatarUrl(user);
+        return avatar ? { uri: avatar } : original;
     }
 
     function parseColor(value) {
@@ -613,6 +637,7 @@
                 patchAfter(UserProfileStore, "getGuildMemberProfile", ([userId], profile) => applyProfile(profile, userId));
                 patchAfter(decorationModule, "getAvatarDecorationURL", ([options], original) => customDecorationUrl(options, original));
                 patchAfter(avatarModule, "getUserAvatarURL", ([user], original) => customAvatarUrl(user, original));
+                patchAfter(avatarModule, "getUserAvatarSource", ([user], original) => customAvatarSource(user, original));
                 patchAfter(useBadgesModule, "default", ([user], result) => {
                     const userId = user?.userId || user?.id;
                     if (!userId || !Array.isArray(result)) return;

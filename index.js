@@ -38,7 +38,7 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
         var useBadgesModule = vendetta.metro.findByName("useBadges", false);
         var jsxRuntime = vendetta.metro.findByProps("jsx", "jsxs");
         var decorationModule = vendetta.metro.findByProps("getAvatarDecorationURL");
-        var avatarModule = vendetta.metro.findByProps("getUserAvatarURL");
+        var avatarModule = vendetta.metro.findByProps("getUserAvatarURL", "getUserAvatarSource");
         var storage = vendetta.plugin.storage;
         var useProxy = vendetta.storage.useProxy;
         var showToast = vendetta.ui.toasts.showToast;
@@ -344,6 +344,7 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             ]
         ];
         var userOriginals = new Map();
+        var userProxyCache = new WeakMap();
         var profileOriginals = new Map();
         var badgeProps = new Map();
         var visibleUsers = new Set();
@@ -452,7 +453,31 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
         }
         function applyUser(user) {
             var values = user?.id && customValues(user.id);
-            return values ? rememberAndAssign(user, values, userOriginals) : user;
+            if (!values) return user;
+            var applied = rememberAndAssign(user, values, userOriginals);
+            if (!storage.profiles[user.id]?.avatar?.startsWith("http")) return applied;
+            var proxy = userProxyCache.get(applied);
+            if (!proxy) {
+                proxy = new Proxy(applied, {
+                    get (target, property, receiver) {
+                        var avatar = storage.profiles[target.id]?.avatar;
+                        if (avatar?.startsWith("http")) {
+                            if (property === "getAvatarURL") return function() {
+                                return avatar;
+                            };
+                            if (property === "getAvatarSource") return function() {
+                                return {
+                                    uri: avatar
+                                };
+                            };
+                            if (property === "avatarURL") return avatar;
+                        }
+                        return Reflect.get(target, property, receiver);
+                    }
+                });
+                userProxyCache.set(applied, proxy);
+            }
+            return proxy;
         }
         function applyProfile(profile, userId) {
             var values = customValues(userId);
@@ -666,6 +691,12 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             var userId = user?.id || user?.userId;
             var avatar = userId && storage.profiles[userId]?.avatar;
             return avatar?.startsWith("http://") || avatar?.startsWith("https://") ? avatar : original;
+        }
+        function customAvatarSource(user, original) {
+            var avatar = customAvatarUrl(user);
+            return avatar ? {
+                uri: avatar
+            } : original;
         }
         function parseColor(value) {
             var normalized = value.trim().replace(/^#/, "");
@@ -1076,6 +1107,9 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     });
                     patchAfter(avatarModule, "getUserAvatarURL", function([user], original) {
                         return customAvatarUrl(user, original);
+                    });
+                    patchAfter(avatarModule, "getUserAvatarSource", function([user], original) {
+                        return customAvatarSource(user, original);
                     });
                     patchAfter(useBadgesModule, "default", function([user], result) {
                         var _loop = function(badge) {
