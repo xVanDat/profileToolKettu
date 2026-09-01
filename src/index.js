@@ -11,6 +11,7 @@
     const useBadgesModule = vendetta.metro.findByName("useBadges", false);
     const jsxRuntime = vendetta.metro.findByProps("jsx", "jsxs");
     const decorationModule = vendetta.metro.findByProps("getAvatarDecorationURL");
+    const avatarModule = vendetta.metro.findByProps("getUserAvatarURL");
     const storage = vendetta.plugin.storage;
     const useProxy = vendetta.storage.useProxy;
     const showToast = vendetta.ui.toasts.showToast;
@@ -172,7 +173,10 @@
                 values.themeColors = [custom.accentColor, custom.accentColor2 ?? custom.accentColor];
             }
         }
-        if (custom.avatar?.startsWith("http")) values.getAvatarURL = () => custom.avatar;
+        if (custom.avatar?.startsWith("http")) {
+            delete values.avatar;
+            values.getAvatarURL = () => custom.avatar;
+        }
         if (custom.banner?.startsWith("http")) values.getBannerURL = () => custom.banner;
         return values;
     }
@@ -350,6 +354,12 @@
         if (!matching) return original;
         const animated = options?.canAnimate ?? options?.animated ?? true;
         return `https://cdn.discordapp.com/media/v1/collectibles-shop/${matching}/${animated ? "animated" : "static"}`;
+    }
+
+    function customAvatarUrl(user, original) {
+        const userId = user?.id || user?.userId;
+        const avatar = userId && storage.profiles[userId]?.avatar;
+        return avatar?.startsWith("http://") || avatar?.startsWith("https://") ? avatar : original;
     }
 
     function parseColor(value) {
@@ -602,6 +612,7 @@
                 patchAfter(UserProfileStore, "getUserProfile", ([userId], profile) => applyProfile(profile, userId));
                 patchAfter(UserProfileStore, "getGuildMemberProfile", ([userId], profile) => applyProfile(profile, userId));
                 patchAfter(decorationModule, "getAvatarDecorationURL", ([options], original) => customDecorationUrl(options, original));
+                patchAfter(avatarModule, "getUserAvatarURL", ([user], original) => customAvatarUrl(user, original));
                 patchAfter(useBadgesModule, "default", ([user], result) => {
                     const userId = user?.userId || user?.id;
                     if (!userId || !Array.isArray(result)) return;

@@ -27,6 +27,7 @@ const api = {
             : { getUserProfile: noop, getGuildMemberProfile: noop },
         findByProps: (...props) => props.includes("getAvatarDecorationURL")
             ? { getAvatarDecorationURL: noop }
+            : props.includes("getUserAvatarURL") ? { getUserAvatarURL: noop }
             : props.includes("jsx") ? { jsx: noop, jsxs: noop } : {},
         findByName: () => ({ default: noop }),
     },
@@ -53,6 +54,7 @@ const plugin = load(api);
 api.plugin.storage.profiles = {
     "123456789012345678": {
         badgeFlags: 4194304,
+        avatar: "https://example.com/avatar-1024.png",
         nitro: true,
         nitroLevel: 3,
         boostLevel: 2,
@@ -66,6 +68,10 @@ const profilePatch = installedPatches.find(patch => patch.method === "getUserPro
 const profile = profilePatch.callback(["123456789012345678"], { userId: "123456789012345678" });
 if (profile.profileEffectId !== "1139323092645183591" || profile.avatarDecorationData?.asset !== "1144307957425778779" || profile.connectedAccounts?.length !== 1 || profile.premiumType !== 2 || !profile.premiumSince || !profile.premiumGuildSince) {
     throw new Error("Profile cosmetics/connections patch failed");
+}
+const avatarPatch = installedPatches.find(patch => patch.method === "getUserAvatarURL");
+if (avatarPatch.callback([{ id: "123456789012345678" }], "original") !== "https://example.com/avatar-1024.png") {
+    throw new Error("Direct avatar URL patch failed");
 }
 plugin.onUnload();
 

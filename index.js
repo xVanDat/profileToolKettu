@@ -38,6 +38,7 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
         var useBadgesModule = vendetta.metro.findByName("useBadges", false);
         var jsxRuntime = vendetta.metro.findByProps("jsx", "jsxs");
         var decorationModule = vendetta.metro.findByProps("getAvatarDecorationURL");
+        var avatarModule = vendetta.metro.findByProps("getUserAvatarURL");
         var storage = vendetta.plugin.storage;
         var useProxy = vendetta.storage.useProxy;
         var showToast = vendetta.ui.toasts.showToast;
@@ -438,9 +439,12 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     ];
                 }
             }
-            if (custom.avatar?.startsWith("http")) values.getAvatarURL = function() {
-                return custom.avatar;
-            };
+            if (custom.avatar?.startsWith("http")) {
+                delete values.avatar;
+                values.getAvatarURL = function() {
+                    return custom.avatar;
+                };
+            }
             if (custom.banner?.startsWith("http")) values.getBannerURL = function() {
                 return custom.banner;
             };
@@ -657,6 +661,11 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
             if (!matching) return original;
             var animated = options?.canAnimate ?? options?.animated ?? true;
             return `https://cdn.discordapp.com/media/v1/collectibles-shop/${matching}/${animated ? "animated" : "static"}`;
+        }
+        function customAvatarUrl(user, original) {
+            var userId = user?.id || user?.userId;
+            var avatar = userId && storage.profiles[userId]?.avatar;
+            return avatar?.startsWith("http://") || avatar?.startsWith("https://") ? avatar : original;
         }
         function parseColor(value) {
             var normalized = value.trim().replace(/^#/, "");
@@ -1064,6 +1073,9 @@ var __profileToolsPlugin = function __profileToolsPlugin() {
                     });
                     patchAfter(decorationModule, "getAvatarDecorationURL", function([options], original) {
                         return customDecorationUrl(options, original);
+                    });
+                    patchAfter(avatarModule, "getUserAvatarURL", function([user], original) {
+                        return customAvatarUrl(user, original);
                     });
                     patchAfter(useBadgesModule, "default", function([user], result) {
                         var _loop = function(badge) {
